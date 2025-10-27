@@ -37,6 +37,13 @@
   - 最佳实践
 
 ### 🔄 开发文档
+- **[okx-integration-guide.md](./okx-integration-guide.md)** - OKX API 集成指南
+  - 完整的集成架构设计
+  - 分阶段实施计划（7-10天）
+  - 技术实现细节和代码示例
+  - 配置指南和API申请说明
+  - 开发检查清单和测试策略
+
 - **[REFACTORING_SUMMARY.md](./REFACTORING_SUMMARY.md)** - 代码重构总结
   - 重构目标和成果
   - 架构变化对比
