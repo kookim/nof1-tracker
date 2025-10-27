@@ -155,9 +155,10 @@ export interface EnvironmentConfig {
  * 跟单配置选项
  */
 export interface FollowOptions {
-  profitTarget?: number;      // 盈利目标百分比 (e.g., 30 for 30%)
-  autoRefollow?: boolean;     // 自动重新跟单 (默认false)
-  totalMargin?: number;       // 总保证金
+  profitTarget?: number;        // 盈利目标百分比 (e.g., 30 for 30%)
+  autoRefollow?: boolean;       // 自动重新跟单 (默认false)
+  totalMargin?: number;         // 总保证金（比例分配模式）
+  fixedAmountPerCoin?: number;  // 每个币种的固定保证金（固定金额分配模式）
   marginType?: 'ISOLATED' | 'CROSSED'; // 保证金模式: ISOLATED(逐仓) 或 CROSSED(全仓), 默认全仓
 }
 

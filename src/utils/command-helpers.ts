@@ -33,6 +33,10 @@ export function applyConfiguration(analyzer: ApiAnalyzer, options: CommandOption
   if (options.totalMargin && !isNaN(options.totalMargin)) {
     console.log(`💰 Total margin set to $${options.totalMargin.toFixed(2)}`);
   }
+
+  if (options.fixedAmountPerCoin && !isNaN(options.fixedAmountPerCoin)) {
+    console.log(`💰 Fixed amount per coin set to $${options.fixedAmountPerCoin.toFixed(2)}`);
+  }
 }
 
 /**

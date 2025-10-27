@@ -104,6 +104,9 @@ describe('FollowService', () => {
       totalNotionalValue: 0
     });
     mockCapitalManager.formatPercentage = jest.fn().mockReturnValue('100%');
+    mockCapitalManager.validateAllocationOptions = jest.fn().mockReturnValue({
+      isValid: true
+    });
     mockTradingExecutor.getAccountInfo = jest.fn().mockResolvedValue({
       availableBalance: '10000.0',
       totalWalletBalance: '10000.0'

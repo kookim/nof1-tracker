@@ -49,6 +49,7 @@ program
   .option('-i, --interval <seconds>', 'polling interval in seconds for continuous monitoring', '30')
   .option('-t, --price-tolerance <percentage>', 'set price tolerance threshold (default: 1%)', parseFloat)
   .option('-m, --total-margin <amount>', 'set total margin for futures trading (default: 10 USDT)', parseFloat)
+  .option('--fixed-amount-per-coin <amount>', 'set fixed margin amount per coin (fixed allocation mode)', parseFloat)
   .option('--profit <percentage>', 'auto exit when profit reaches specified percentage (e.g., 30 for 30%)', parseFloat)
   .option('--auto-refollow', 'automatically refollow after profit target exit (default: false)')
   .option('--margin-type <type>', 'margin mode: ISOLATED (isolated) or CROSSED (cross, default)', 'CROSSED')

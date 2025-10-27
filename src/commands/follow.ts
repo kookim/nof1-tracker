@@ -79,6 +79,7 @@ export async function handleFollowCommand(agentName: string, options: CommandOpt
 
       const followOptions = {
         totalMargin: options.totalMargin,
+        fixedAmountPerCoin: options.fixedAmountPerCoin,
         profitTarget: options.profit,
         autoRefollow: options.autoRefollow,
         marginType: options.marginType || 'CROSSED'

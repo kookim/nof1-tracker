@@ -118,8 +118,24 @@ export class FollowService {
           logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Auto-refollow disabled: will not refollow after profit target exit`);
         }
       }
-    } else {
-      logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Profit target disabled: using agent's original exit plan only`);
+    }
+
+    // 验证资金分配参数
+    const validation = this.capitalManager.validateAllocationOptions({
+      totalMargin: options?.totalMargin,
+      fixedAmountPerCoin: options?.fixedAmountPerCoin
+    });
+
+    if (!validation.isValid) {
+      logError(`❌ ${validation.error}`);
+      return [];
+    }
+
+    // 显示资金分配模式信息
+    if (options?.fixedAmountPerCoin) {
+      logInfo(`${LOGGING_CONFIG.EMOJIS.MONEY} Fixed amount allocation enabled: $${options.fixedAmountPerCoin.toFixed(2)} per coin`);
+    } else if (options?.totalMargin) {
+      logInfo(`${LOGGING_CONFIG.EMOJIS.MONEY} Proportional allocation enabled: Total margin $${options.totalMargin.toFixed(2)}`);
     }
 
     // 0. 重新加载订单历史,确保使用最新数据(支持手动修改文件)
@@ -150,6 +166,8 @@ export class FollowService {
     // 5. 应用资金分配
     if (options?.totalMargin && options.totalMargin > 0) {
       await this.applyCapitalAllocation(followPlans, currentPositions, options!.totalMargin, agentId);
+    } else if (options?.fixedAmountPerCoin && options.fixedAmountPerCoin > 0) {
+      await this.applyFixedAmountAllocation(followPlans, currentPositions, options.fixedAmountPerCoin, agentId);
     }
 
     // 6. 注意：不要在这里更新 lastPositions！
@@ -772,6 +790,83 @@ export class FollowService {
         followPlan.quantity = allocation.adjustedQuantity;
       }
     }
+  }
+
+  /**
+   * 应用固定金额分配到 ENTER 操作的跟单计划
+   */
+  private async applyFixedAmountAllocation(
+    followPlans: FollowPlan[],
+    currentPositions: Position[],
+    fixedAmountPerCoin: number,
+    agentId: string
+  ): Promise<void> {
+    const enterPlans = followPlans.filter(plan => plan.action === "ENTER");
+
+    if (enterPlans.length === 0) {
+      return;
+    }
+
+    // 获取对应的仓位信息
+    const positionsForAllocation: Position[] = [];
+    for (const plan of enterPlans) {
+      const position = currentPositions.find(p => p.symbol === plan.symbol);
+      if (position && position.margin > 0) {
+        positionsForAllocation.push(position);
+      }
+    }
+
+    if (positionsForAllocation.length === 0) {
+      return;
+    }
+
+    // 获取可用余额
+    let availableBalance: number | undefined;
+    try {
+      const accountInfo = await this.tradingExecutor.getAccountInfo();
+      availableBalance = parseFloat(accountInfo.availableBalance);
+      logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} Available account balance: ${availableBalance.toFixed(2)} USDT`);
+    } catch (balanceError) {
+      logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to get account balance: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`);
+    }
+
+    // 执行固定金额分配
+    const allocationResult = this.capitalManager.allocateFixedMargin(
+      positionsForAllocation,
+      fixedAmountPerCoin,
+      undefined, // 不限制总资金
+      availableBalance
+    );
+
+    // 显示分配信息
+    this.displayFixedAmountAllocation(allocationResult, agentId, fixedAmountPerCoin);
+
+    // 将分配结果应用到跟单计划
+    this.applyAllocationToPlans(allocationResult, enterPlans);
+  }
+
+  /**
+   * 显示固定金额分配信息
+   */
+  private displayFixedAmountAllocation(allocationResult: CapitalAllocationResult, agentId: string, fixedAmountPerCoin: number): void {
+    logDebug(`\n${LOGGING_CONFIG.EMOJIS.MONEY} Fixed Amount Allocation for ${agentId}:`);
+    logDebug('==========================================');
+    logDebug(`${LOGGING_CONFIG.EMOJIS.MONEY} Fixed Amount per Coin: $${fixedAmountPerCoin.toFixed(2)}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.COUNT} Positions Allocated: ${allocationResult.allocations.length}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.MONEY} Total Margin Used: $${allocationResult.totalAllocatedMargin.toFixed(2)}`);
+    logDebug(`${LOGGING_CONFIG.EMOJIS.TREND_UP} Total Notional Value: $${allocationResult.totalNotionalValue.toFixed(2)}`);
+    logDebug('');
+
+    for (const allocation of allocationResult.allocations) {
+      logDebug(`${allocation.symbol} - ${allocation.leverage}x leverage`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.CHART} Original Margin: $${allocation.originalMargin.toFixed(2)}`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.MONEY} Fixed Allocated Margin: $${allocation.allocatedMargin.toFixed(2)}`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.TREND_UP} Notional Value: $${allocation.notionalValue.toFixed(2)}`);
+      logDebug(`   ${LOGGING_CONFIG.EMOJIS.INFO} Adjusted Quantity: ${allocation.adjustedQuantity.toFixed(4)}`);
+      logDebug('');
+    }
+
+    logDebug('==========================================');
   }
 
   /**

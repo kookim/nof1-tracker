@@ -22,7 +22,7 @@ export class FuturesCapitalManager {
   private defaultTotalMargin: number = 10; // 默认总保证金10 USDT
 
   /**
-   * 分配保证金到各个仓位
+   * 分配保证金到各个仓位（比例分配模式）
    * @param positions Agent的仓位信息
    * @param totalMargin 用户设定的总保证金
    * @param availableBalance 可用余额（可选，用于检查是否有足够资金）
@@ -177,5 +177,142 @@ export class FuturesCapitalManager {
     }
 
     return true;
+  }
+
+  /**
+   * 分配保证金到各个仓位（固定金额模式）
+   * @param positions Agent的仓位信息
+   * @param fixedAmountPerCoin 每个币种的固定保证金金额
+   * @param maxTotalMargin 最大总保证金限制（可选，资金不足时按顺序购买）
+   * @param availableBalance 可用余额（可选，用于检查是否有足够资金）
+   */
+  allocateFixedMargin(
+    positions: Position[],
+    fixedAmountPerCoin: number,
+    maxTotalMargin?: number,
+    availableBalance?: number
+  ): CapitalAllocationResult {
+    // 过滤出有效的仓位（margin > 0）
+    const validPositions = positions.filter(p => p.margin > 0);
+
+    if (validPositions.length === 0 || fixedAmountPerCoin <= 0) {
+      return {
+        totalOriginalMargin: 0,
+        totalAllocatedMargin: 0,
+        totalNotionalValue: 0,
+        allocations: []
+      };
+    }
+
+    // 计算实际可用的总保证金
+    let actualTotalMargin = Math.min(
+      maxTotalMargin || Infinity,
+      availableBalance || Infinity,
+      fixedAmountPerCoin * validPositions.length
+    );
+
+    // 计算最多可以购买多少个币种
+    const maxCoins = Math.floor(actualTotalMargin / fixedAmountPerCoin);
+    const positionsToAllocate = validPositions.slice(0, maxCoins);
+
+    if (positionsToAllocate.length === 0) {
+      console.warn(`⚠️ Insufficient margin for any position. Required: ${fixedAmountPerCoin} USDT per coin, Available: ${actualTotalMargin.toFixed(2)} USDT`);
+      return {
+        totalOriginalMargin: validPositions.reduce((sum, p) => sum + p.margin, 0),
+        totalAllocatedMargin: 0,
+        totalNotionalValue: 0,
+        allocations: []
+      };
+    }
+
+    // 计算总原始保证金（仅包含要分配的仓位）
+    const totalOriginalMargin = positionsToAllocate.reduce((sum, p) => sum + p.margin, 0);
+
+    // 计算每个仓位的固定金额分配
+    const allocations: CapitalAllocation[] = positionsToAllocate.map(position => {
+      const allocatedMargin = fixedAmountPerCoin;
+      const notionalValue = allocatedMargin * position.leverage;
+      const adjustedQuantity = notionalValue / position.current_price;
+      const side = position.quantity > 0 ? "BUY" : "SELL";
+
+      // 数量精度处理
+      const roundedAllocatedMargin = Math.floor(allocatedMargin);
+      const roundedNotionalValue = Math.floor(notionalValue);
+      const roundedAdjustedQuantity = this.roundQuantity(adjustedQuantity, position.symbol);
+
+      return {
+        symbol: position.symbol,
+        originalMargin: position.margin,
+        allocatedMargin: roundedAllocatedMargin,
+        notionalValue: roundedNotionalValue,
+        adjustedQuantity: roundedAdjustedQuantity,
+        allocationRatio: allocatedMargin / (fixedAmountPerCoin * positionsToAllocate.length), // 基于实际分配的比例
+        leverage: position.leverage,
+        side
+      };
+    });
+
+    // 计算总计
+    const totalAllocatedMargin = allocations.reduce((sum, a) => sum + a.allocatedMargin, 0);
+    const totalNotionalValue = allocations.reduce((sum, a) => sum + a.notionalValue, 0);
+
+    // 输出资金使用情况
+    const remainingMargin = actualTotalMargin - totalAllocatedMargin;
+    if (remainingMargin < fixedAmountPerCoin && positionsToAllocate.length < validPositions.length) {
+      console.log(`💰 Used ${totalAllocatedMargin} USDT for ${positionsToAllocate.length} positions, remaining ${remainingMargin.toFixed(2)} USDT insufficient for next position (requires ${fixedAmountPerCoin} USDT)`);
+    }
+
+    return {
+      totalOriginalMargin,
+      totalAllocatedMargin,
+      totalNotionalValue,
+      allocations
+    };
+  }
+
+  /**
+   * 验证固定金额分配结果
+   */
+  validateFixedAllocation(result: CapitalAllocationResult, expectedFixedAmount: number): boolean {
+    // 检查每个分配是否等于固定金额
+    for (const allocation of result.allocations) {
+      if (allocation.allocatedMargin !== expectedFixedAmount) {
+        console.warn(`Fixed amount allocation mismatch: expected ${expectedFixedAmount}, got ${allocation.allocatedMargin} for ${allocation.symbol}`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * 检查参数冲突
+   */
+  validateAllocationOptions(options: { totalMargin?: number; fixedAmountPerCoin?: number }): { isValid: boolean; error?: string } {
+    const { totalMargin, fixedAmountPerCoin } = options;
+
+    if (totalMargin && fixedAmountPerCoin) {
+      return {
+        isValid: false,
+        error: 'Cannot specify both totalMargin and fixedAmountPerCoin. Please choose either proportional allocation or fixed amount allocation.'
+      };
+    }
+
+    // 检查明确的零值或负值
+    if (fixedAmountPerCoin !== undefined && fixedAmountPerCoin <= 0) {
+      return {
+        isValid: false,
+        error: 'fixedAmountPerCoin must be greater than 0'
+      };
+    }
+
+    if (totalMargin !== undefined && totalMargin <= 0) {
+      return {
+        isValid: false,
+        error: 'totalMargin must be greater than 0'
+      };
+    }
+
+    return { isValid: true };
   }
 }

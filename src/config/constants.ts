@@ -58,6 +58,7 @@ export const LOGGING_CONFIG = {
     SEARCH: '🔍',
     MONEY: '💰',
     CHART: '📊',
+    COUNT: '🔢',
     TIMER: '⏰',
   } as const,
 } as const;

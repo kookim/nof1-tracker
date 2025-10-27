@@ -211,4 +211,157 @@ describe('FuturesCapitalManager', () => {
       expect(allocation.leverage).toBe(originalPosition!.leverage);
     });
   });
+
+  // ==================== 固定金额分配模式测试 ====================
+
+  describe('allocateFixedMargin', () => {
+    it('should allocate fixed amount per coin correctly', () => {
+      const fixedAmount = 100;
+      const result = capitalManager.allocateFixedMargin(mockPositions, fixedAmount);
+
+      expect(result.allocations).toHaveLength(mockPositions.length);
+      result.allocations.forEach(allocation => {
+        expect(allocation.allocatedMargin).toBe(fixedAmount);
+        expect(allocation.leverage).toBeGreaterThan(0);
+        expect(allocation.adjustedQuantity).toBeGreaterThan(0);
+        expect(allocation.notionalValue).toBe(fixedAmount * allocation.leverage);
+      });
+    });
+
+    it('should handle insufficient funds by allocating fewer positions', () => {
+      const fixedAmount = 100;
+      const maxTotalMargin = 250; // 只够买2个币种 (100 * 2 = 200, 250/100 = 2.5, 向下取整为2)
+      const result = capitalManager.allocateFixedMargin(mockPositions, fixedAmount, maxTotalMargin);
+
+      expect(result.allocations).toHaveLength(2); // 只能分配2个币种
+      expect(result.totalAllocatedMargin).toBe(200); // 100 * 2
+      result.allocations.forEach(allocation => {
+        expect(allocation.allocatedMargin).toBe(fixedAmount);
+      });
+    });
+
+    it('should handle available balance limit', () => {
+      const fixedAmount = 100;
+      const availableBalance = 150; // 只够买1个币种
+      const result = capitalManager.allocateFixedMargin(mockPositions, fixedAmount, undefined, availableBalance);
+
+      expect(result.allocations).toHaveLength(1);
+      expect(result.totalAllocatedMargin).toBe(100);
+    });
+
+    it('should return empty result for zero fixed amount', () => {
+      const result = capitalManager.allocateFixedMargin(mockPositions, 0);
+      expect(result.allocations).toHaveLength(0);
+      expect(result.totalAllocatedMargin).toBe(0);
+    });
+
+    it('should return empty result for negative fixed amount', () => {
+      const result = capitalManager.allocateFixedMargin(mockPositions, -100);
+      expect(result.allocations).toHaveLength(0);
+      expect(result.totalAllocatedMargin).toBe(0);
+    });
+
+    it('should return empty result for empty positions array', () => {
+      const result = capitalManager.allocateFixedMargin([], 100);
+      expect(result.allocations).toHaveLength(0);
+      expect(result.totalAllocatedMargin).toBe(0);
+    });
+
+    it('should filter out positions with zero margin', () => {
+      const positionsWithZeroMargin = [
+        ...mockPositions,
+        {
+          symbol: 'DOGEUSDT',
+          entry_price: 0.3822,
+          quantity: 1000,
+          leverage: 20,
+          current_price: 0.3801,
+          unrealized_pnl: -2.1,
+          confidence: 0.62,
+          entry_oid: 210171600000,
+          tp_oid: 210171610000,
+          sl_oid: 210171620000,
+          margin: 0, // 零保证金
+          exit_plan: {
+            profit_target: 0.42,
+            stop_loss: 0.35,
+            invalidation_condition: 'Test condition'
+          }
+        }
+      ];
+      const result = capitalManager.allocateFixedMargin(positionsWithZeroMargin, 100);
+
+      // 应该只分配给非零保证金的仓位
+      expect(result.allocations.length).toBeGreaterThan(0);
+      result.allocations.forEach(allocation => {
+        const originalPosition = positionsWithZeroMargin.find(p => p.symbol === allocation.symbol);
+        expect(originalPosition?.margin).toBeGreaterThan(0);
+      });
+    });
+
+    it('should maintain original position leverage and side', () => {
+      const result = capitalManager.allocateFixedMargin(mockPositions, 100);
+
+      result.allocations.forEach(allocation => {
+        const originalPosition = mockPositions.find(p => p.symbol === allocation.symbol);
+        expect(allocation.leverage).toBe(originalPosition!.leverage);
+
+        const expectedSide = originalPosition!.quantity > 0 ? "BUY" : "SELL";
+        expect(allocation.side).toBe(expectedSide);
+      });
+    });
+  });
+
+  describe('validateFixedAllocation', () => {
+    it('should validate correct fixed allocation', () => {
+      const result = capitalManager.allocateFixedMargin(mockPositions, 100);
+      const isValid = capitalManager.validateFixedAllocation(result, 100);
+      expect(isValid).toBe(true);
+    });
+
+    it('should detect incorrect fixed allocation', () => {
+      const result = capitalManager.allocateFixedMargin(mockPositions, 100);
+      // 手动修改一个分配金额来模拟错误
+      result.allocations[0].allocatedMargin = 150;
+      const isValid = capitalManager.validateFixedAllocation(result, 100);
+      expect(isValid).toBe(false);
+    });
+  });
+
+  describe('validateAllocationOptions', () => {
+    it('should validate valid options', () => {
+      expect(capitalManager.validateAllocationOptions({ totalMargin: 1000 })).toEqual({ isValid: true });
+      expect(capitalManager.validateAllocationOptions({ fixedAmountPerCoin: 100 })).toEqual({ isValid: true });
+      expect(capitalManager.validateAllocationOptions({})).toEqual({ isValid: true });
+    });
+
+    it('should reject conflicting options', () => {
+      const result = capitalManager.validateAllocationOptions({
+        totalMargin: 1000,
+        fixedAmountPerCoin: 100
+      });
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('Cannot specify both totalMargin and fixedAmountPerCoin');
+    });
+
+    it('should reject invalid totalMargin', () => {
+      let result = capitalManager.validateAllocationOptions({ totalMargin: 0 });
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('totalMargin must be greater than 0');
+
+      result = capitalManager.validateAllocationOptions({ totalMargin: -100 });
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('totalMargin must be greater than 0');
+    });
+
+    it('should reject invalid fixedAmountPerCoin', () => {
+      let result = capitalManager.validateAllocationOptions({ fixedAmountPerCoin: 0 });
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('fixedAmountPerCoin must be greater than 0');
+
+      result = capitalManager.validateAllocationOptions({ fixedAmountPerCoin: -50 });
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('fixedAmountPerCoin must be greater than 0');
+    });
+  });
 });

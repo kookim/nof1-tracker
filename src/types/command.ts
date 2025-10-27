@@ -10,6 +10,7 @@ export interface CommandOptions {
   riskOnly?: boolean;
   priceTolerance?: number;
   totalMargin?: number;
+  fixedAmountPerCoin?: number; // 每个币种的固定保证金（固定金额分配模式）
   force?: boolean;
   interval?: string;
   profit?: number;        // 盈利目标百分比 (e.g., 30 for 30%)
