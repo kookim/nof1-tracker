@@ -8,6 +8,8 @@
 
 一个用于跟踪 nof1.ai AI Agent 交易信号并自动执行 Binance 合约交易的命令行工具。支持7个AI量化Agent的实时跟单，自动识别开仓、平仓、换仓和止盈止损信号。
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F11HO935)
+
 ## ⚡ 快速开始
 
 ```bash
@@ -48,6 +50,8 @@ npm start -- profit
 
 实时查看 deepseek-chat-v3.1 AI Agent 的交易表现、持仓情况和盈亏统计。
 
+Dashboard项目地址: https://github.com/terryso/nof1-tracker-dashboard
+
 ## 🤖 支持的AI Agent
 
 | Agent名称 |
@@ -68,8 +72,10 @@ npm start -- profit
 本系统使用 **Binance 合约交易API**，必须正确配置权限：
 
 #### 创建API密钥
-1. 登录 [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
-2. 创建新API密钥，完成安全验证
+1. 首先先注册一个币安帐号: https://www.maxweb.red/referral/earn-together/refer2earn-usdc/claim?hl=zh-CN&ref=GRO_28502_ACBRJ&utm_source=default
+2. 登录 [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
+3. 创建新API密钥，完成安全验证
+   
 
 #### 配置权限（关键）
 - ✅ **Enable Futures** - 启用合约交易（必选）

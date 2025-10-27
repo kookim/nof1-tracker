@@ -8,6 +8,8 @@
 
 A command-line tool for tracking nof1.ai AI Agent trading signals and automatically executing Binance futures trades. Supports real-time copy trading from 7 AI quantitative agents with automatic position opening, closing, switching, and stop-loss/take-profit.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F11HO935)
+
 ## ⚡ Quick Start
 
 ```bash
@@ -48,6 +50,8 @@ npm start -- profit
 
 Real-time view of deepseek-chat-v3.1 AI Agent's trading performance, positions, and profit/loss statistics.
 
+Dashboard: https://github.com/terryso/nof1-tracker-dashboard
+
 ## 🤖 Supported AI Agents
 
 | Agent Name |
@@ -67,8 +71,9 @@ Real-time view of deepseek-chat-v3.1 AI Agent's trading performance, positions, 
 This system uses **Binance Futures Trading API**, permissions must be configured correctly:
 
 #### Create API Key
-1. Login to [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
-2. Create new API key, complete security verification
+1. Register Binance Account: https://www.maxweb.red/referral/earn-together/refer2earn-usdc/claim?hl=zh-CN&ref=GRO_28502_ACBRJ&utm_source=default
+2. Login to [Binance](https://www.binance.com/) → [API Management](https://www.binance.com/en/my/settings/api-management)
+3. Create new API key, complete security verification
 
 #### Configure Permissions (Critical)
 - ✅ **Enable Futures** - Enable futures trading (Required)
