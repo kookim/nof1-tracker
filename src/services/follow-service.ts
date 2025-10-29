@@ -430,10 +430,12 @@ export class FollowService {
       logDebug(`${LOGGING_CONFIG.EMOJIS.INFO} No actual position to close, will use normal capital allocation for new position`);
     }
 
-    // 添加价格容忍度检查
+    // 添加价格容忍度检查（带方向性判断）
+    const positionSide = currentPosition.quantity > 0 ? "BUY" : "SELL";
     const priceTolerance = this.riskManager.checkPriceTolerance(
       currentPosition.entry_price,
       currentPosition.current_price,
+      positionSide,
       currentPosition.symbol
     );
 
@@ -446,7 +448,7 @@ export class FollowService {
     const followPlan: FollowPlan = {
       action: "ENTER",
       symbol: currentPosition.symbol,
-      side: currentPosition.quantity > 0 ? "BUY" : "SELL",
+      side: positionSide,
       type: "MARKET",
       quantity: Math.abs(currentPosition.quantity),
       leverage: currentPosition.leverage,
@@ -552,10 +554,12 @@ export class FollowService {
       logWarn(`${LOGGING_CONFIG.EMOJIS.WARNING} Failed to check existing positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    // 添加价格容忍度检查
+    // 添加价格容忍度检查（带方向性判断）
+    const positionSide = currentPosition.quantity > 0 ? "BUY" : "SELL";
     const priceTolerance = this.riskManager.checkPriceTolerance(
       currentPosition.entry_price,
       currentPosition.current_price,
+      positionSide,
       currentPosition.symbol
     );
 
@@ -563,7 +567,7 @@ export class FollowService {
     const followPlan: FollowPlan = {
       action: "ENTER",
       symbol: currentPosition.symbol,
-      side: currentPosition.quantity > 0 ? "BUY" : "SELL",
+      side: positionSide,
       type: "MARKET",
       quantity: Math.abs(currentPosition.quantity),
       leverage: currentPosition.leverage,

@@ -104,7 +104,7 @@ export function convertToTradingPlan(plan: FollowPlan): TradingPlan {
 }
 
 /**
- * 评估风险(支持价格容差检查)
+ * 评估风险(支持方向性价格容差检查)
  */
 export function assessRiskWithTolerance(
   riskManager: RiskManager,
@@ -113,10 +113,11 @@ export function assessRiskWithTolerance(
   priceTolerance?: number
 ): any {
   if (plan.action === "ENTER" && plan.entryPrice && plan.position?.current_price) {
-    return riskManager.assessRiskWithPriceTolerance(
+    return riskManager.assessRiskWithDirectionalPriceTolerance(
       tradingPlan,
       plan.entryPrice,
       plan.position.current_price,
+      plan.side, // 使用仓位方向进行方向性判断
       plan.symbol,
       priceTolerance
     );

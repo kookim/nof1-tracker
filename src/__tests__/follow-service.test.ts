@@ -424,8 +424,11 @@ describe('FollowService', () => {
         entryPrice: 50000,
         currentPrice: 55000,
         priceDifference: 10,
+        directionalPriceDifference: 10,
         tolerance: 5,
-        withinTolerance: false
+        withinTolerance: false,
+        favorableForExecution: false,
+        side: 'BUY'
       });
 
       const promise1 = followService.followAgent('test-agent', [mockPosition]);

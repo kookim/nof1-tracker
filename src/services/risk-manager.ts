@@ -4,10 +4,13 @@ import { ConfigManager } from "./config-manager";
 export interface PriceToleranceCheck {
   entryPrice: number;
   currentPrice: number;
-  priceDifference: number; // Percentage difference
+  priceDifference: number; // Percentage difference (absolute value for backward compatibility)
+  directionalPriceDifference: number; // Signed percentage difference (positive: price up, negative: price down)
   tolerance: number; // Tolerance threshold in percentage
-  withinTolerance: boolean;
-  shouldExecute: boolean;
+  withinTolerance: boolean; // Within tolerance based on absolute difference
+  shouldExecute: boolean; // Final execution decision considering direction
+  favorableForExecution: boolean; // Whether price movement is favorable for execution
+  side?: "BUY" | "SELL"; // Position side for directional consideration
   reason: string;
 }
 
@@ -42,19 +45,86 @@ export class RiskManager {
   }
 
   /**
-   * 计算价格差异百分比
+   * 计算价格差异百分比（带符号）
+   * @param entryPrice 入场价格
+   * @param currentPrice 当前价格
+   * @returns 有符号百分比差异（正数表示价格上涨，负数表示价格下跌）
    */
-  calculatePriceDifference(entryPrice: number, currentPrice: number): number {
+  calculateDirectionalPriceDifference(entryPrice: number, currentPrice: number): number {
     if (entryPrice <= 0) {
       throw new Error('Entry price must be greater than 0');
     }
-    return Math.abs((currentPrice - entryPrice) / entryPrice) * 100;
+    return ((currentPrice - entryPrice) / entryPrice) * 100;
   }
 
   /**
-   * 检查价格是否在容忍范围内
+   * 计算价格差异百分比（绝对值，向后兼容）
+   * @param entryPrice 入场价格
+   * @param currentPrice 当前价格
+   * @returns 绝对值百分比差异
+   */
+  calculatePriceDifference(entryPrice: number, currentPrice: number): number {
+    return Math.abs(this.calculateDirectionalPriceDifference(entryPrice, currentPrice));
+  }
+
+  /**
+   * 检查价格是否在容忍范围内（带方向性判断）
    */
   checkPriceTolerance(
+    entryPrice: number,
+    currentPrice: number,
+    side?: "BUY" | "SELL",
+    symbol?: string,
+    customTolerance?: number
+  ): PriceToleranceCheck {
+    const tolerance = customTolerance || this.configManager.getPriceTolerance(symbol);
+    const priceDifference = this.calculatePriceDifference(entryPrice, currentPrice);
+    const directionalPriceDifference = this.calculateDirectionalPriceDifference(entryPrice, currentPrice);
+    const withinTolerance = priceDifference <= tolerance;
+
+    // 判断价格移动是否有利于执行
+    let favorableForExecution = false;
+    if (side) {
+      if (side === "BUY") {
+        // 多头仓位：当前价格低于或等于入场价格时有利
+        favorableForExecution = directionalPriceDifference <= 0;
+      } else {
+        // 空头仓位：当前价格高于或等于入场价格时有利
+        favorableForExecution = directionalPriceDifference >= 0;
+      }
+    }
+
+    // 执行决策：在容忍度范围内，或者在容忍度外但价格移动有利
+    const shouldExecute = withinTolerance || favorableForExecution;
+
+    // 生成详细原因说明
+    let reason = "";
+    if (favorableForExecution && !withinTolerance) {
+      reason = `Price moved ${side === "BUY" ? "down" : "up"} by ${Math.abs(directionalPriceDifference).toFixed(2)}% which is favorable for ${side} position (exceeds tolerance ${tolerance}%)`;
+    } else if (withinTolerance) {
+      reason = `Price difference ${priceDifference.toFixed(2)}% is within tolerance ${tolerance}%`;
+    } else {
+      reason = `Price difference ${priceDifference.toFixed(2)}% exceeds tolerance ${tolerance}% and price movement is unfavorable for ${side} position`;
+    }
+
+    return {
+      entryPrice,
+      currentPrice,
+      priceDifference,
+      directionalPriceDifference,
+      tolerance,
+      withinTolerance,
+      shouldExecute,
+      favorableForExecution,
+      side,
+      reason
+    };
+  }
+
+  /**
+   * 向后兼容的方法（不带方向性判断）
+   */
+  checkPriceToleranceLegacy(
     entryPrice: number,
     currentPrice: number,
     symbol?: string,
@@ -62,15 +132,18 @@ export class RiskManager {
   ): PriceToleranceCheck {
     const tolerance = customTolerance || this.configManager.getPriceTolerance(symbol);
     const priceDifference = this.calculatePriceDifference(entryPrice, currentPrice);
+    const directionalPriceDifference = this.calculateDirectionalPriceDifference(entryPrice, currentPrice);
     const withinTolerance = priceDifference <= tolerance;
 
     return {
       entryPrice,
       currentPrice,
       priceDifference,
+      directionalPriceDifference,
       tolerance,
       withinTolerance,
       shouldExecute: withinTolerance,
+      favorableForExecution: false, // 向后兼容，不使用方向性判断
       reason: withinTolerance
         ? `Price difference ${priceDifference.toFixed(2)}% is within tolerance ${tolerance}%`
         : `Price difference ${priceDifference.toFixed(2)}% exceeds tolerance ${tolerance}%`
@@ -78,7 +151,7 @@ export class RiskManager {
   }
 
   /**
-   * 包含价格容忍度检查的风险评估
+   * 包含价格容忍度检查的风险评估（向后兼容，不使用方向性判断）
    */
   assessRiskWithPriceTolerance(
     tradingPlan: TradingPlan,
@@ -90,8 +163,8 @@ export class RiskManager {
     // Get basic risk assessment
     const basicAssessment = this.assessRisk(tradingPlan);
 
-    // Add price tolerance check
-    const priceTolerance = this.checkPriceTolerance(entryPrice, currentPrice, symbol, customTolerance);
+    // Add price tolerance check (using legacy method for backward compatibility)
+    const priceTolerance = this.checkPriceToleranceLegacy(entryPrice, currentPrice, symbol, customTolerance);
 
     // Combine warnings
     const combinedWarnings = [...basicAssessment.warnings];
@@ -104,6 +177,37 @@ export class RiskManager {
       warnings: combinedWarnings,
       priceTolerance,
       isValid: basicAssessment.isValid && priceTolerance.withinTolerance
+    };
+  }
+
+  /**
+   * 包含方向性价格容忍度检查的风险评估
+   */
+  assessRiskWithDirectionalPriceTolerance(
+    tradingPlan: TradingPlan,
+    entryPrice: number,
+    currentPrice: number,
+    side: "BUY" | "SELL",
+    symbol?: string,
+    customTolerance?: number
+  ): RiskAssessment {
+    // Get basic risk assessment
+    const basicAssessment = this.assessRisk(tradingPlan);
+
+    // Add directional price tolerance check
+    const priceTolerance = this.checkPriceTolerance(entryPrice, currentPrice, side, symbol, customTolerance);
+
+    // Combine warnings
+    const combinedWarnings = [...basicAssessment.warnings];
+    if (!priceTolerance.shouldExecute) {
+      combinedWarnings.push(`Price tolerance check failed: ${priceTolerance.reason}`);
+    }
+
+    return {
+      ...basicAssessment,
+      warnings: combinedWarnings,
+      priceTolerance,
+      isValid: basicAssessment.isValid && priceTolerance.shouldExecute
     };
   }
 
