@@ -43,13 +43,16 @@ cp .env.example .env
 # 3. 查看可用的AI Agent
 npm start -- agents
 
-# 4. 开始跟单（风险控制模式，不会真实交易）
+# 4. 测试Telegram通知（可选）
+npm start -- telegram-test
+
+# 5. 开始跟单（风险控制模式，不会真实交易）
 npm start -- follow deepseek-chat-v3.1 --risk-only
 
-# 5. 持续监控跟单（每30秒检查一次）
+# 6. 持续监控跟单（每30秒检查一次）
 npm start -- follow gpt-5 --interval 30
 
-# 6. 查看盈利统计
+# 7. 查看盈利统计
 npm start -- profit
 ```
 
@@ -135,7 +138,34 @@ RISK_PERCENTAGE=2.0
 npm start -- agents
 ```
 
-#### 2. 跟单AI Agent（核心功能）
+#### 2. Telegram通知配置（可选）
+
+如果您想在交易执行时收到Telegram通知，请按以下步骤配置：
+
+**创建Telegram Bot**：
+1. 在Telegram中搜索 `@BotFather`
+2. 发送 `/newbot` 创建新机器人
+3. 按提示设置机器人名称和用户名
+4. 获取Bot Token（格式：`1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`）
+
+**获取Chat ID**：
+1. 在Telegram中搜索 `@userinfobot`
+2. 发送任意消息获取您的Chat ID
+3. 或者发送消息给您的机器人，然后访问：`https://api.telegram.org/bot<TOKEN>/getUpdates`
+
+**环境变量配置**：
+```bash
+# 在 .env 文件中添加
+TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_CHAT_ID=123456789
+```
+
+**测试Telegram通知**：
+```bash
+npm start -- telegram-test
+```
+
+#### 3. 跟单AI Agent（核心功能）
 
 **基础用法**：
 ```bash
@@ -202,7 +232,7 @@ npm start -- follow gpt-5 --interval 30 --fixed-amount-per-coin 100 --profit 25 
 
 ⚠️ **注意**: `--total-margin` 和 `--fixed-amount-per-coin` 不能同时使用，只能选择一种分配模式。
 
-#### 3. 盈利统计分析
+#### 4. 盈利统计分析
 ```bash
 # 统计跟单开始以来的总盈利（默认包含浮动盈亏）
 npm start -- profit
@@ -376,7 +406,8 @@ src/
 │   ├── agents.ts          # 获取AI Agent列表
 │   ├── follow.ts          # 跟单命令（核心）
 │   ├── profit.ts          # 盈利统计分析
-│   └── status.ts          # 系统状态检查
+│   ├── status.ts          # 系统状态检查
+│   └── telegram.ts        # Telegram通知命令
 ├── services/              # 核心服务
 │   ├── api-client.ts      # Nof1 API客户端
 │   ├── binance-service.ts # Binance API集成
@@ -385,7 +416,8 @@ src/
 │   ├── profit-calculator.ts # 盈利计算引擎
 │   ├── trade-history-service.ts # 交易历史服务
 │   ├── order-history-manager.ts # 订单历史管理
-│   └── futures-capital-manager.ts # 合约资金管理
+│   ├── futures-capital-manager.ts # 合约资金管理
+│   └── telegram-service.ts # Telegram通知服务
 ├── scripts/
 │   └── analyze-api.ts     # API分析引擎（跟单策略）
 ├── types/                 # TypeScript类型定义
@@ -403,6 +435,8 @@ src/
     生成FollowPlan → TradingExecutor执行
          ↓
     BinanceService → Binance API → 交易完成
+         ↓
+    TelegramService → Telegram通知（可选）
 
 盈利分析流程：
 用户命令 → profit命令处理器 → TradeHistoryService获取历史交易

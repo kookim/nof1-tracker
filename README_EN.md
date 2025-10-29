@@ -12,6 +12,24 @@ A command-line tool for tracking nof1.ai AI Agent trading signals and automatica
 
 <img width="220" height="286" alt="b7c0054cf81fe6735d60ab5de48243e5" src="https://github.com/user-attachments/assets/4628befa-96b4-42dd-af42-4724a9a28336" />
 
+## 🏢 Deployment Service
+
+**Don't want to deploy yourself? We provide deployment services!**
+
+### Advantages of Server Deployment
+- 🖥️ **No local computer required** - Server runs 24/7 automatically, no need to keep your computer on
+- 🌍 **No VPN needed** - Recommended servers are in overseas environment for more stable access to Binance API and nof1.ai
+- 🔋 **Hassle-free** - Professional configuration, automatic operation, no worries about environment setup and network issues
+
+### Service Costs
+- 💰 **Low server cost** - A server monthly rental is only 40 RMB
+- 🛠️ **Deployment service fee negotiable** - Configure and deploy according to specific needs
+
+### Contact Information
+📱 **Interested parties please add WeChat**: `gptkit`
+
+> Note: Deployment service includes complete environment configuration, system deployment, operation testing, and usage guidance.
+
 ## ⚡ Quick Start
 
 ```bash
@@ -214,6 +232,9 @@ npm start -- follow claude-sonnet-4-5 --risk-only
 # Set total margin (default 10 USDT)
 npm start -- follow gpt-5 --total-margin 5000
 
+# Set fixed margin amount per coin (fixed allocation mode)
+npm start -- follow gpt-5 --fixed-amount-per-coin 100
+
 # Set price tolerance (default 1.0%)
 npm start -- follow deepseek-chat-v3.1 --price-tolerance 1.0
 
@@ -223,8 +244,17 @@ npm start -- follow gpt-5 --profit 30
 # Profit target exit + auto refollow
 npm start -- follow deepseek-chat-v3.1 --profit 30 --auto-refollow
 
+# Set margin type (isolated mode)
+npm start -- follow gpt-5 --margin-type ISOLATED
+
+# Set margin type (cross margin mode, default)
+npm start -- follow deepseek-chat-v3.1 --margin-type CROSSED
+
 # Combined usage
-npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow
+npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow --margin-type ISOLATED
+
+# Fixed amount allocation mode combined usage
+npm start -- follow gpt-5 --interval 30 --fixed-amount-per-coin 100 --profit 25 --auto-refollow
 ```
 
 **Command Options**:
@@ -232,8 +262,23 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-r
 - `-i, --interval <seconds>`: Polling interval in seconds, default 30
 - `-t, --price-tolerance <percentage>`: Price tolerance percentage, default 1.0%
 - `-m, --total-margin <amount>`: Total margin (USDT), default 10
+- `--fixed-amount-per-coin <amount>`: Fixed margin amount per coin (USDT), fixed allocation mode
 - `--profit <percentage>`: Profit target percentage, auto close when reached
 - `--auto-refollow`: Auto refollow after profit target exit (disabled by default)
+- `--margin-type <type>`: Margin type, ISOLATED (isolated) or CROSSED (cross margin, default)
+
+**Funding Allocation Modes**:
+
+1. **Total Margin Mode (Default)**: `--total-margin 5000`
+   - Distributes total margin proportionally among all followed coins
+   - Suitable for diversified investment with automatic balance
+
+2. **Fixed Amount Allocation Mode**: `--fixed-amount-per-coin 100`
+   - Allocates fixed margin amount to each coin
+   - Prioritized allocation when funds are insufficient (first-come, first-served)
+   - Strict control over maximum risk per position
+
+⚠️ **Note**: `--total-margin` and `--fixed-amount-per-coin` cannot be used simultaneously.
 
 #### 3. Profit Statistics Analysis
 ```bash
