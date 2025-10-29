@@ -5,17 +5,13 @@ import { OrderHistoryManager } from './order-history-manager';
 import { TradingPlan } from '../types/trading';
 import {
   LOGGING_CONFIG,
-  TIME_CONFIG,
-  TRADING_CONFIG,
-  LogLevel
+  TIME_CONFIG
 } from '../config/constants';
 import {
   PositionError,
-  TradingError,
-  handleErrors,
-  safeExecute
+  handleErrors
 } from '../utils/errors';
-import { logInfo, logDebug, logVerbose, logWarn, logError } from '../utils/logger';
+import { logInfo, logDebug, logWarn, logError } from '../utils/logger';
 
 /**
  * 仓位操作结果

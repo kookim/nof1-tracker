@@ -193,10 +193,8 @@ BINANCE_API_KEY=your_binance_api_key_here
 BINANCE_API_SECRET=your_binance_api_secret_here
 BINANCE_TESTNET=true  # true=testnet, false=mainnet
 
-# Trading Configuration
-MAX_POSITION_SIZE=1000
-DEFAULT_LEVERAGE=10
-RISK_PERCENTAGE=2.0
+# Other Configuration Options
+LOG_LEVEL=INFO  # Log level
 
 # Telegram Configuration (Optional)
 TELEGRAM_ENABLED=true

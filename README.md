@@ -123,10 +123,11 @@ BINANCE_API_KEY=your_binance_api_key_here
 BINANCE_API_SECRET=your_binance_api_secret_here
 BINANCE_TESTNET=true  # true=测试网, false=正式网
 
-# Trading Configuration
-MAX_POSITION_SIZE=1000
-DEFAULT_LEVERAGE=10
-RISK_PERCENTAGE=2.0
+# 其他配置选项
+LOG_LEVEL=INFO  # 日志级别
+TELEGRAM_API_TOKEN=  # Telegram Bot Token (可选)
+TELEGRAM_CHAT_ID=    # Telegram Chat ID (可选)
+TELEGRAM_ENABLED=false
 ```
 
 ## 📖 使用方法

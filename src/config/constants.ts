@@ -63,11 +63,7 @@ export const LOGGING_CONFIG = {
   } as const,
 } as const;
 
-export const TRADING_CONFIG = {
-  // 交易相关配置
-  DEFAULT_LEVERAGE: 1,
-  MIN_POSITION_SIZE: 0.001,
-} as const;
+// 交易相关配置通过命令行参数控制
 
 export const CACHE_CONFIG = {
   // 缓存配置

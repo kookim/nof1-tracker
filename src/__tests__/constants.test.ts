@@ -4,7 +4,6 @@ import {
   LOGGING_CONFIG,
   LogLevel,
   ENV_VARS,
-  TRADING_CONFIG,
   CACHE_CONFIG,
   getCurrentLastHourlyMarker,
   buildAccountTotalsUrl
@@ -210,20 +209,6 @@ describe('Constants Configuration', () => {
       const url = buildAccountTotalsUrl(largeMarker);
 
       expect(url).toBe('https://nof1.ai/api/account-totals?lastHourlyMarker=9999999999');
-    });
-  });
-
-  describe('TRADING_CONFIG', () => {
-    it('should have trading configuration values', () => {
-      expect(TRADING_CONFIG.DEFAULT_LEVERAGE).toBe(1);
-      expect(TRADING_CONFIG.MIN_POSITION_SIZE).toBe(0.001);
-    });
-
-    it('should have numeric values', () => {
-      expect(typeof TRADING_CONFIG.DEFAULT_LEVERAGE).toBe('number');
-      expect(typeof TRADING_CONFIG.MIN_POSITION_SIZE).toBe('number');
-      expect(TRADING_CONFIG.DEFAULT_LEVERAGE).toBeGreaterThan(0);
-      expect(TRADING_CONFIG.MIN_POSITION_SIZE).toBeGreaterThan(0);
     });
   });
 
