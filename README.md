@@ -62,7 +62,7 @@ npm start -- profit
 - **📊 实时监控**: 可配置轮询间隔，持续跟踪Agent交易动作
 - **🔄 智能跟单**: 自动识别开仓、平仓、换仓（OID变化）和止盈止损
 - **🎯 盈利目标退出**: 支持设置自定义盈利目标，达到后自动平仓退出
-- **🔄 自动重新跟单**: 可选的自动重新跟单功能，盈利退出后自动重新入场
+- **🔄 自动重新跟单**: 可选的自动重新跟单功能，支持盈利退出和手工平仓后自动重新入场
 - **⚡ 合约交易**: 完整支持Binance USDT永续合约，支持1x-125x杠杆
 - **📈 盈利统计**: 精确的盈利分析，基于真实交易数据计算（含手续费统计）
 - **🛡️ 风险控制**: 支持`--risk-only`模式，只观察不执行交易
@@ -217,7 +217,7 @@ npm start -- follow gpt-5 --interval 30 --fixed-amount-per-coin 100 --profit 25 
 - `-m, --total-margin <amount>`: 总保证金（USDT），默认10
 - `--fixed-amount-per-coin <amount>`: 每个币种固定保证金（USDT），固定金额分配模式
 - `--profit <percentage>`: 盈利目标百分比，达到后自动平仓退出
-- `--auto-refollow`: 自动重新跟单，盈利退出后自动重新入场（默认关闭）
+- `--auto-refollow`: 自动重新跟单，支持盈利退出和手工平仓后自动重新入场（默认关闭）
 - `--margin-type <type>`: 保证金模式，ISOLATED（逐仓）或 CROSSED（全仓，默认）
 
 **资金分配模式说明**：
@@ -312,9 +312,10 @@ npm start -- follow deepseek-chat-v3.1 --profit 50
 - ✅ 支持多头和空头仓位的盈利计算
 - ✅ 完整的盈利退出事件记录
 
-#### 自动重新跟单
-在盈利退出的基础上，可选择自动重新跟单功能：
+#### 自动重新跟单（增强版）
+`--auto-refollow` 选项现在支持两种自动重新跟单场景：
 
+**1. 盈利目标退出后重新跟单**：
 ```bash
 # 盈利30%退出后，自动重新跟单
 npm start -- follow gpt-5 --profit 30 --auto-refollow
@@ -323,23 +324,56 @@ npm start -- follow gpt-5 --profit 30 --auto-refollow
 npm start -- follow deepseek-chat-v3.1 --interval 30 --profit 25 --auto-refollow
 ```
 
+**2. 手工平仓后自动重新跟单（新功能）**：
+```bash
+# 启用手工平仓检测和自动重新跟单
+npm start -- follow deepseek-chat-v3.1 --auto-refollow
+
+# 即使不设置盈利目标，也会检测手工平仓
+npm start -- follow gpt-5 --interval 30 --auto-refollow
+```
+
+**手工平仓检测原理**：
+- 🔍 系统比对 NOF1 API 数据和币安实际仓位
+- 🔧 当 NOF1 显示有仓位但币安无仓位时，判定为手工平仓
+- 📝 自动记录手工平仓事件
+- 🔄 重置订单历史，允许重新跟单
+- ⏭️ 当 NOF1 再次开仓时，自动跟随
+
 **工作流程**：
+
+*盈利退出场景*：
 1. 🔍 检测到仓位盈利达到目标（如30%）
 2. 💰 立即执行市价平仓，锁定盈利
 3. 📝 记录盈利退出事件到历史
 4. 🔄 重置该symbol的订单处理状态
 5. ⏭️ 下个轮询周期检测到OID变化，自动重新跟单
 
+*手工平仓场景*：
+1. 👤 用户在币安 App 手工平仓
+2. 🔍 下次轮询时系统检测到仓位差异
+3. 📝 记录手工平仓事件到历史
+4. 🔄 重置该symbol的订单处理状态
+5. ⏭️ 当 NOF1 再次开仓时，自动跟随
+
 **安全特性**：
 - 🛡️ 重新跟单前进行价格容忍度检查
 - 📊 保留agent原始的止盈止损计划
 - 🔄 可选功能，默认关闭避免意外影响
 - 📝 完整的操作日志记录
+- 🔒 手工平仓检测仅在启用 `--auto-refollow` 时激活
+
+**使用场景**：
+- 🎯 **仅盈利退出**：`--profit 30` （达到30%盈利时平仓，不重新跟单）
+- 🔄 **盈利退出+重新跟单**：`--profit 30 --auto-refollow` （盈利退出后自动重新跟单）
+- 🔧 **手工平仓+重新跟单**：`--auto-refollow` （检测手工平仓并自动重新跟单）
+- 🚀 **完整自动化**：`--profit 30 --auto-refollow` （同时支持盈利退出和手工平仓的重新跟单）
 
 **使用建议**：
-- 🎯 保守策略：`--profit 20` （20%盈利退出）
+- 🎯 保守策略：`--profit 20` （20%盈利退出，不重新跟单）
 - ⚖️ 平衡策略：`--profit 30 --auto-refollow` （30%盈利退出并重新跟单）
-- 🚀 积极策略：`--profit 50 --auto-refollow` （50%盈利退出并重新跟单）
+- 🚀 积极策略：`--auto-refollow` （灵活手工干预，自动重新跟单）
+- 💎 专业策略：`--profit 50 --auto-refollow` （高盈利目标+手工平仓支持）
 
 ### 使用示例
 
@@ -520,6 +554,7 @@ npm run lint
 
 - **[详细跟单策略文档](./docs/follow-strategy.md)** - 完整的跟单策略和风险评估
 - **[快速参考手册](./docs/quick-reference.md)** - 常用命令快速查询
+- **[自动重新跟单功能说明](./docs/auto-refollow-manual-close.md)** - 手工平仓检测和自动重新跟单详细说明
 
 ## ⭐ Star History
 

@@ -752,6 +752,152 @@ describe('OrderHistoryManager', () => {
     });
   });
 
+  describe('manual close records', () => {
+    it('should add manual close record', () => {
+      const { logInfo } = require('../utils/logger');
+      
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected - NOF1 shows position but Binance has none'
+      });
+
+      const records = manager.getManualCloseRecords();
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        reason: 'Manual closure detected - NOF1 shows position but Binance has none'
+      });
+      expect(records[0].timestamp).toBeDefined();
+      expect(records[0].detectedAt).toBeDefined();
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Recorded manual close'));
+    });
+
+    it('should check if manual close record exists', () => {
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      expect(manager.hasManualCloseRecord(123456, 'BTCUSDT')).toBe(true);
+      expect(manager.hasManualCloseRecord(999999, 'BTCUSDT')).toBe(false);
+      expect(manager.hasManualCloseRecord(123456, 'ETHUSDT')).toBe(false);
+    });
+
+    it('should return false when no manual closes exist', () => {
+      expect(manager.hasManualCloseRecord(123456, 'BTCUSDT')).toBe(false);
+    });
+
+    it('should get manual close records by symbol', () => {
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      manager.addManualCloseRecord({
+        symbol: 'ETHUSDT',
+        entryOid: 789012,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 345678,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      const btcRecords = manager.getManualCloseRecordsBySymbol('BTCUSDT');
+      expect(btcRecords).toHaveLength(2);
+      expect(btcRecords.every(r => r.symbol === 'BTCUSDT')).toBe(true);
+
+      const ethRecords = manager.getManualCloseRecordsBySymbol('ETHUSDT');
+      expect(ethRecords).toHaveLength(1);
+      expect(ethRecords[0].symbol).toBe('ETHUSDT');
+    });
+
+    it('should return empty array for symbol with no manual closes', () => {
+      const records = manager.getManualCloseRecordsBySymbol('DOGEUSDT');
+      expect(records).toEqual([]);
+    });
+
+    it('should persist manual close records to file', () => {
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      // Create new manager instance to test persistence
+      const newManager = new OrderHistoryManager(tempDir);
+      const records = newManager.getManualCloseRecords();
+
+      expect(records).toHaveLength(1);
+      expect(records[0].symbol).toBe('BTCUSDT');
+    });
+
+    it('should handle multiple manual close records', () => {
+      const now = Date.now();
+      
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: now - 10000,
+        reason: 'First manual closure'
+      });
+
+      manager.addManualCloseRecord({
+        symbol: 'ETHUSDT',
+        entryOid: 789012,
+        detectedAt: now - 5000,
+        reason: 'Second manual closure'
+      });
+
+      manager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 345678,
+        detectedAt: now,
+        reason: 'Third manual closure'
+      });
+
+      const allRecords = manager.getManualCloseRecords();
+      expect(allRecords).toHaveLength(3);
+
+      const btcRecords = manager.getManualCloseRecordsBySymbol('BTCUSDT');
+      expect(btcRecords).toHaveLength(2);
+    });
+
+    it('should initialize manualCloses array when adding first record', () => {
+      // Create manager with no manual closes
+      const testData: OrderHistoryData = {
+        processedOrders: [],
+        lastUpdated: Date.now()
+      };
+
+      fs.writeJsonSync(path.join(tempDir, 'order-history.json'), testData);
+      const newManager = new OrderHistoryManager(tempDir);
+
+      // Add first manual close record
+      newManager.addManualCloseRecord({
+        symbol: 'BTCUSDT',
+        entryOid: 123456,
+        detectedAt: Date.now(),
+        reason: 'Manual closure detected'
+      });
+
+      const records = newManager.getManualCloseRecords();
+      expect(records).toHaveLength(1);
+    });
+  });
+
   describe('integration scenarios', () => {
     it('should handle typical trading workflow', () => {
       // Simulate a typical trading workflow

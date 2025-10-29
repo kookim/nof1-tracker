@@ -62,7 +62,7 @@ npm start -- profit
 - **📊 Real-time Monitoring**: Configurable polling interval for continuous agent tracking
 - **🔄 Smart Copy Trading**: Auto-detect open, close, switch positions (OID changes), and stop-loss/take-profit
 - **🎯 Profit Target Exit**: Support custom profit targets with automatic position closing when reached
-- **🔄 Auto Refollow**: Optional auto-refollow feature that automatically re-enters after profit target exit
+- **🔄 Auto Refollow**: Optional auto-refollow feature that automatically re-enters after profit target exit or manual closure
 - **⚡ Futures Trading**: Full support for Binance USDT perpetual futures, 1x-125x leverage
 - **📈 Profit Analysis**: Accurate profit analysis based on real trading data (including fee statistics)
 - **🛡️ Risk Control**: Support `--risk-only` mode for observation without execution
@@ -262,7 +262,7 @@ npm start -- follow gpt-5 --interval 30 --fixed-amount-per-coin 100 --profit 25 
 - `-m, --total-margin <amount>`: Total margin (USDT), default 10
 - `--fixed-amount-per-coin <amount>`: Fixed margin amount per coin (USDT), fixed allocation mode
 - `--profit <percentage>`: Profit target percentage, auto close when reached
-- `--auto-refollow`: Auto refollow after profit target exit (disabled by default)
+- `--auto-refollow`: Auto refollow after profit target exit or manual closure (disabled by default)
 - `--margin-type <type>`: Margin type, ISOLATED (isolated) or CROSSED (cross margin, default)
 
 **Funding Allocation Modes**:
@@ -363,9 +363,10 @@ npm start -- follow deepseek-chat-v3.1 --profit 50
 - ✅ Support for both long and short position profit calculations
 - ✅ Complete profit exit event recording
 
-#### Auto Refollow
-Build upon profit exit with optional auto-refollow functionality:
+#### Auto Refollow (Enhanced)
+The `--auto-refollow` option now supports two auto-refollow scenarios:
 
+**1. Refollow After Profit Target Exit**:
 ```bash
 # Auto refollow after 30% profit exit
 npm start -- follow gpt-5 --profit 30 --auto-refollow
@@ -374,23 +375,56 @@ npm start -- follow gpt-5 --profit 30 --auto-refollow
 npm start -- follow deepseek-chat-v3.1 --interval 30 --profit 25 --auto-refollow
 ```
 
-**Workflow**:
+**2. Refollow After Manual Closure (New Feature)**:
+```bash
+# Enable manual closure detection and auto refollow
+npm start -- follow deepseek-chat-v3.1 --auto-refollow
+
+# Detect manual closures even without profit target
+npm start -- follow gpt-5 --interval 30 --auto-refollow
+```
+
+**Manual Closure Detection Principle**:
+- 🔍 System compares NOF1 API data with actual Binance positions
+- 🔧 When NOF1 shows position but Binance has none, detected as manual closure
+- 📝 Automatically records manual closure event
+- 🔄 Resets order history to allow refollowing
+- ⏭️ Automatically follows when NOF1 opens new position
+
+**Workflows**:
+
+*Profit Exit Scenario*:
 1. 🔍 Detect position profit reaches target (e.g., 30%)
 2. 💰 Execute immediate market order close to lock profit
 3. 📝 Record profit exit event to history
 4. 🔄 Reset order processing status for that symbol
 5. ⏭️ Next polling cycle detects OID change and auto refollows
 
+*Manual Closure Scenario*:
+1. 👤 User manually closes position in Binance App
+2. 🔍 System detects position discrepancy in next polling cycle
+3. 📝 Records manual closure event to history
+4. 🔄 Resets order processing status for that symbol
+5. ⏭️ Automatically follows when NOF1 opens new position
+
 **Safety Features**:
 - 🛡️ Price tolerance check before refollowing
 - 📊 Preserve agent's original stop-loss/take-profit plan
 - 🔄 Optional feature, disabled by default to avoid unintended impact
 - 📝 Complete operation logging
+- 🔒 Manual closure detection only activated when `--auto-refollow` is enabled
+
+**Use Cases**:
+- 🎯 **Profit Exit Only**: `--profit 30` (Close at 30% profit, no refollow)
+- 🔄 **Profit Exit + Refollow**: `--profit 30 --auto-refollow` (Auto refollow after profit exit)
+- 🔧 **Manual Closure + Refollow**: `--auto-refollow` (Detect manual closure and auto refollow)
+- 🚀 **Full Automation**: `--profit 30 --auto-refollow` (Support both profit exit and manual closure refollow)
 
 **Usage Recommendations**:
-- 🎯 Conservative: `--profit 20` (20% profit exit)
+- 🎯 Conservative: `--profit 20` (20% profit exit, no refollow)
 - ⚖️ Balanced: `--profit 30 --auto-refollow` (30% profit exit with refollow)
-- 🚀 Aggressive: `--profit 50 --auto-refollow` (50% profit exit with refollow)
+- 🚀 Aggressive: `--auto-refollow` (Flexible manual intervention with auto refollow)
+- 💎 Professional: `--profit 50 --auto-refollow` (High profit target + manual closure support)
 
 ### Usage Examples
 
@@ -594,6 +628,7 @@ npm run lint
 
 - **[Detailed Copy Trading Strategy](./docs/follow-strategy.md)** - Complete copy trading strategy and risk assessment
 - **[Quick Reference](./docs/quick-reference.md)** - Quick command reference
+- **[Auto Refollow Feature Guide](./docs/auto-refollow-manual-close.md)** - Manual closure detection and auto refollow detailed guide
 
 ## ⭐ Star History
 

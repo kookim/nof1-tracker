@@ -1272,4 +1272,200 @@ describe('FollowService', () => {
       expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Position closed with loss'));
     });
   });
+
+  describe('Manual Closure Detection', () => {
+    it('should detect manual closure when auto-refollow is enabled', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      // Setup: Previous position exists in history
+      mockOrderHistoryManager.getProcessedOrdersByAgent.mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 10000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      // NOF1 still shows position
+      const currentPosition = { ...mockPosition };
+
+      // But Binance has no position (manual closure)
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0', // No position
+          entryPrice: '0',
+          markPrice: '51000'
+        }
+      ]);
+
+      mockOrderHistoryManager.addManualCloseRecord = jest.fn();
+      mockOrderHistoryManager.resetSymbolOrderStatus = jest.fn();
+
+      const resultPromise = followService.followAgent('test-agent', [currentPosition], { autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Detected manual closure'));
+      expect(mockOrderHistoryManager.addManualCloseRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          symbol: 'BTCUSDT',
+          entryOid: 12345
+        })
+      );
+      expect(mockOrderHistoryManager.resetSymbolOrderStatus).toHaveBeenCalledWith('BTCUSDT', 12345);
+    });
+
+    it('should not detect manual closure when auto-refollow is disabled', async () => {
+      // Setup: Previous position exists
+      mockOrderHistoryManager.getProcessedOrdersByAgent.mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 10000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const currentPosition = { ...mockPosition };
+
+      // Binance has no position
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0',
+          entryPrice: '0',
+          markPrice: '51000'
+        }
+      ]);
+
+      mockOrderHistoryManager.addManualCloseRecord = jest.fn();
+
+      const resultPromise = followService.followAgent('test-agent', [currentPosition], { autoRefollow: false });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      // Should not detect manual closure when auto-refollow is disabled
+      expect(mockOrderHistoryManager.addManualCloseRecord).not.toHaveBeenCalled();
+    });
+
+    it('should handle getAllPositions error gracefully', async () => {
+      const { logWarn } = require('../utils/logger');
+      
+      mockOrderHistoryManager.getProcessedOrdersByAgent.mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 10000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const currentPosition = { ...mockPosition };
+
+      // Mock getAllPositions to throw error
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockRejectedValue(new Error('API error'));
+
+      mockOrderHistoryManager.addManualCloseRecord = jest.fn();
+
+      const resultPromise = followService.followAgent('test-agent', [currentPosition], { autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Failed to detect manual closures'));
+      expect(mockOrderHistoryManager.addManualCloseRecord).not.toHaveBeenCalled();
+    });
+
+    it('should not detect manual closure when Binance still has position', async () => {
+      mockOrderHistoryManager.getProcessedOrdersByAgent.mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 10000,
+          side: 'BUY',
+          quantity: 0.1,
+          price: 50000
+        }
+      ]);
+
+      const currentPosition = { ...mockPosition };
+
+      // Binance still has position
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          positionAmt: '0.1', // Position exists
+          entryPrice: '50000',
+          markPrice: '51000'
+        }
+      ]);
+
+      mockOrderHistoryManager.addManualCloseRecord = jest.fn();
+
+      const resultPromise = followService.followAgent('test-agent', [currentPosition], { autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      // Should not detect manual closure
+      expect(mockOrderHistoryManager.addManualCloseRecord).not.toHaveBeenCalled();
+    });
+
+    it('should skip zero quantity positions in manual closure detection', async () => {
+      mockOrderHistoryManager.getProcessedOrdersByAgent.mockReturnValue([
+        {
+          entryOid: 12345,
+          symbol: 'BTCUSDT',
+          agent: 'test-agent',
+          timestamp: Date.now() - 10000,
+          side: 'BUY',
+          quantity: 0, // Zero quantity
+          price: 50000
+        }
+      ]);
+
+      const currentPosition = { ...mockPosition, quantity: 0 };
+
+      (mockPositionManager as any).binanceService.getAllPositions = jest.fn().mockResolvedValue([]);
+
+      mockOrderHistoryManager.addManualCloseRecord = jest.fn();
+
+      const resultPromise = followService.followAgent('test-agent', [currentPosition], { autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      // Should not detect manual closure for zero quantity
+      expect(mockOrderHistoryManager.addManualCloseRecord).not.toHaveBeenCalled();
+    });
+
+    it('should log auto-refollow message when enabled without profit target', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const resultPromise = followService.followAgent('test-agent', [], { autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('Auto-refollow enabled: will detect manual closures'));
+    });
+
+    it('should log combined message when both profit target and auto-refollow enabled', async () => {
+      const { logInfo } = require('../utils/logger');
+      
+      const resultPromise = followService.followAgent('test-agent', [], { profitTarget: 30, autoRefollow: true });
+      await jest.runAllTimersAsync();
+      await resultPromise;
+
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('will reset order status after profit target exit or manual closure'));
+    });
+  });
 });
