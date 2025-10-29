@@ -154,6 +154,9 @@ npm start -- follow claude-sonnet-4-5 --risk-only
 # 设置总保证金（默认10 USDT）
 npm start -- follow gpt-5 --total-margin 5000
 
+# 设置每个币种固定保证金（固定金额分配模式）
+npm start -- follow gpt-5 --fixed-amount-per-coin 100
+
 # 设置价格容差（默认1.0%）
 npm start -- follow deepseek-chat-v3.1 --price-tolerance 1.0
 
@@ -171,6 +174,9 @@ npm start -- follow deepseek-chat-v3.1 --margin-type CROSSED
 
 # 组合使用
 npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-refollow --margin-type ISOLATED
+
+# 固定金额分配模式组合使用
+npm start -- follow gpt-5 --interval 30 --fixed-amount-per-coin 100 --profit 25 --auto-refollow
 ```
 
 **命令选项说明**：
@@ -178,9 +184,23 @@ npm start -- follow gpt-5 --interval 30 --total-margin 2000 --profit 25 --auto-r
 - `-i, --interval <seconds>`: 轮询间隔（秒），默认30秒
 - `-t, --price-tolerance <percentage>`: 价格容差百分比，默认1.0%
 - `-m, --total-margin <amount>`: 总保证金（USDT），默认10
+- `--fixed-amount-per-coin <amount>`: 每个币种固定保证金（USDT），固定金额分配模式
 - `--profit <percentage>`: 盈利目标百分比，达到后自动平仓退出
 - `--auto-refollow`: 自动重新跟单，盈利退出后自动重新入场（默认关闭）
 - `--margin-type <type>`: 保证金模式，ISOLATED（逐仓）或 CROSSED（全仓，默认）
+
+**资金分配模式说明**：
+
+1. **总保证金模式（默认）**: `--total-margin 5000`
+   - 将总保证金按比例分配给所有跟单的币种
+   - 适合分散投资，自动平衡各个仓位的资金分配
+
+2. **固定金额分配模式**: `--fixed-amount-per-coin 100`
+   - 为每个币种分配固定金额的保证金
+   - 资金不足时按优先级顺序分配，先到先得
+   - 严格控制每个仓位的最大风险
+
+⚠️ **注意**: `--total-margin` 和 `--fixed-amount-per-coin` 不能同时使用，只能选择一种分配模式。
 
 #### 3. 盈利统计分析
 ```bash
