@@ -22,9 +22,21 @@ export interface ProfitExitRecord {
   reason: string;
 }
 
+/**
+ * 手工平仓记录
+ */
+export interface ManualCloseRecord {
+  symbol: string;
+  entryOid: number;
+  detectedAt: number; // 检测到手工平仓的时间
+  reason: string;
+  timestamp: number;
+}
+
 export interface OrderHistoryData {
   processedOrders: ProcessedOrder[];
   profitExits?: ProfitExitRecord[]; // 盈利退出记录
+  manualCloses?: ManualCloseRecord[]; // 手工平仓记录
   lastUpdated: number;
   createdAt?: number; // 跟单开始时间
 }
@@ -48,9 +60,12 @@ export class OrderHistoryManager {
       if (fs.existsSync(this.historyFilePath)) {
         const data = fs.readJsonSync(this.historyFilePath);
 
-        // 确保profitExits字段存在（兼容旧文件）
+        // 确保profitExits和manualCloses字段存在（兼容旧文件）
         if (!data.profitExits) {
           data.profitExits = [];
+        }
+        if (!data.manualCloses) {
+          data.manualCloses = [];
         }
 
         // 如果没有createdAt字段，尝试添加
@@ -88,6 +103,7 @@ export class OrderHistoryManager {
     const emptyHistory: OrderHistoryData = {
       processedOrders: [],
       profitExits: [],
+      manualCloses: [],
       lastUpdated: Date.now(),
       createdAt: Date.now()
     };
@@ -375,5 +391,55 @@ export class OrderHistoryManager {
     }
 
     return this.historyData.profitExits.filter(record => record.symbol === symbol);
+  }
+
+  /**
+   * 添加手工平仓记录
+   */
+  addManualCloseRecord(record: Omit<ManualCloseRecord, 'timestamp'>): void {
+    const manualCloseRecord: ManualCloseRecord = {
+      ...record,
+      timestamp: Date.now()
+    };
+
+    // 初始化manualCloses数组（如果不存在）
+    if (!this.historyData.manualCloses) {
+      this.historyData.manualCloses = [];
+    }
+
+    this.historyData.manualCloses.push(manualCloseRecord);
+    this.saveOrderHistory();
+    logInfo(`🔧 Recorded manual close: ${record.symbol} (OID: ${record.entryOid}) - ${record.reason}`);
+  }
+
+  /**
+   * 检查特定订单是否有手工平仓记录
+   */
+  hasManualCloseRecord(entryOid: number, symbol: string): boolean {
+    if (!this.historyData.manualCloses) {
+      return false;
+    }
+
+    return this.historyData.manualCloses.some(
+      record => record.entryOid === entryOid && record.symbol === symbol
+    );
+  }
+
+  /**
+   * 获取手工平仓记录
+   */
+  getManualCloseRecords(): ManualCloseRecord[] {
+    return [...(this.historyData.manualCloses || [])];
+  }
+
+  /**
+   * 获取特定symbol的手工平仓记录
+   */
+  getManualCloseRecordsBySymbol(symbol: string): ManualCloseRecord[] {
+    if (!this.historyData.manualCloses) {
+      return [];
+    }
+
+    return this.historyData.manualCloses.filter(record => record.symbol === symbol);
   }
 }

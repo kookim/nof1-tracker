@@ -1,5 +1,5 @@
 import { Position, FollowPlan, AgentAccount, FollowOptions } from '../scripts/analyze-api';
-import { ProfitExitRecord } from './order-history-manager';
+import { ProfitExitRecord, ManualCloseRecord } from './order-history-manager';
 import { PriceToleranceCheck } from './risk-manager';
 import { CapitalAllocationResult } from './futures-capital-manager';
 import { PositionManager } from './position-manager';
@@ -23,7 +23,7 @@ import { logInfo, logDebug, logVerbose, logWarn, logError } from '../utils/logge
  */
 interface PositionChange {
   symbol: string;
-  type: 'entry_changed' | 'new_position' | 'position_closed' | 'no_change' | 'profit_target_reached';
+  type: 'entry_changed' | 'new_position' | 'position_closed' | 'no_change' | 'profit_target_reached' | 'manual_closed';
   currentPosition?: Position;
   previousPosition?: Position;
   profitPercentage?: number; // 盈利百分比（仅当type为profit_target_reached时有值）
@@ -113,11 +113,14 @@ export class FollowService {
       } else {
         logInfo(`${LOGGING_CONFIG.EMOJIS.TARGET} Profit target enabled: ${options.profitTarget}%`);
         if (options?.autoRefollow) {
-          logInfo(`${LOGGING_CONFIG.EMOJIS.CLOSING} Auto-refollow enabled: will reset order status after profit target exit`);
+          logInfo(`${LOGGING_CONFIG.EMOJIS.CLOSING} Auto-refollow enabled: will reset order status after profit target exit or manual closure`);
         } else {
           logInfo(`${LOGGING_CONFIG.EMOJIS.INFO} Auto-refollow disabled: will not refollow after profit target exit`);
         }
       }
+    } else if (options?.autoRefollow) {
+      // 即使没有设置盈利目标，auto-refollow 也会检测手工平仓
+      logInfo(`${LOGGING_CONFIG.EMOJIS.CLOSING} Auto-refollow enabled: will detect manual closures and allow refollowing`);
     }
 
     // 验证资金分配参数
@@ -152,6 +155,15 @@ export class FollowService {
 
     // 2. 检测仓位变化
     const changes = await this.detectPositionChanges(currentPositions, previousPositions || [], options);
+
+    // 2.1 检测手工平仓（仅在启用 auto-refollow 时）
+    if (options?.autoRefollow) {
+      const manualClosures = await this.detectManualClosure(currentPositions, previousPositions || [], options);
+      if (manualClosures.length > 0) {
+        logInfo(`🔧 Detected ${manualClosures.length} manual closure(s)`);
+        changes.push(...manualClosures);
+      }
+    }
 
     // 3. 处理每种变化
     for (const change of changes) {
@@ -251,6 +263,96 @@ export class FollowService {
   }
 
   /**
+   * 检测手工平仓情况
+   * 比较NOF1 API返回的仓位与币安实际仓位，检测用户是否手工平仓
+   */
+  private async detectManualClosure(
+    currentPositions: Position[],
+    previousPositions: Position[],
+    options?: FollowOptions
+  ): Promise<PositionChange[]> {
+    const manualClosures: PositionChange[] = [];
+
+    // 只有在启用 auto-refollow 时才检测手工平仓
+    if (!options?.autoRefollow) {
+      return manualClosures;
+    }
+
+    try {
+      // 获取币安实际仓位
+      const binancePositions = await this.positionManager['binanceService'].getAllPositions();
+      
+      // 遍历之前的仓位，检查是否被手工平仓
+      for (const prevPos of previousPositions) {
+        // 跳过已经是零仓位的
+        if (prevPos.quantity === 0) {
+          continue;
+        }
+
+        // 查找当前NOF1仓位
+        const currentPos = currentPositions.find(p => p.symbol === prevPos.symbol);
+        
+        // 如果NOF1仍然显示有仓位（OID未变）
+        if (currentPos && currentPos.entry_oid === prevPos.entry_oid && currentPos.quantity !== 0) {
+          // 检查币安是否真的有这个仓位
+          const targetSymbol = this.positionManager['binanceService'].convertSymbol(currentPos.symbol);
+          const binancePosition = binancePositions.find(
+            p => p.symbol === targetSymbol && parseFloat(p.positionAmt) !== 0
+          );
+
+          // 如果NOF1显示有仓位但币安没有，说明被手工平仓了
+          if (!binancePosition) {
+            logInfo(`🔧 Detected manual closure: ${currentPos.symbol} (OID: ${currentPos.entry_oid})`);
+            logInfo(`   📊 NOF1 shows position: ${currentPos.quantity} @ $${currentPos.entry_price}`);
+            logInfo(`   📊 Binance has no position for ${targetSymbol}`);
+            
+            manualClosures.push({
+              symbol: currentPos.symbol,
+              type: 'manual_closed',
+              currentPosition: currentPos,
+              previousPosition: prevPos
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logWarn(`⚠️ Failed to detect manual closures: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return manualClosures;
+  }
+
+  /**
+   * 处理手工平仓
+   * 记录手工平仓事件并重置订单历史，允许重新跟单
+   */
+  private handleManualClosure(
+    change: PositionChange,
+    agentId: string,
+    options?: FollowOptions
+  ): void {
+    const { currentPosition } = change;
+    if (!currentPosition) return;
+
+    logInfo(`🔧 Handling manual closure for ${currentPosition.symbol}`);
+
+    // 记录手工平仓事件
+    this.orderHistoryManager.addManualCloseRecord({
+      symbol: currentPosition.symbol,
+      entryOid: currentPosition.entry_oid,
+      detectedAt: Date.now(),
+      reason: `Manual closure detected - NOF1 shows position but Binance has none`
+    });
+
+    // 重置该币种的订单历史，允许重新跟单
+    if (options?.autoRefollow) {
+      logInfo(`🔄 Auto-refollow enabled: Resetting order status for ${currentPosition.symbol}`);
+      this.orderHistoryManager.resetSymbolOrderStatus(currentPosition.symbol, currentPosition.entry_oid);
+      logInfo(`📝 Note: ${currentPosition.symbol} will be refollowed when NOF1 opens a new position`);
+    }
+  }
+
+  /**
    * 计算仓位盈利百分比（使用币安真实数据）
    */
   private async calculateProfitPercentage(position: Position): Promise<number> {
@@ -332,6 +434,10 @@ export class FollowService {
 
       case 'profit_target_reached':
         await this.handleProfitTargetReached(change, agentId, plans, options);
+        break;
+
+      case 'manual_closed':
+        this.handleManualClosure(change, agentId, options);
         break;
 
       case 'no_change':
