@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+dist
+coverage
+docs
+*.log
+.env
+data
+**/*.test.ts
+.DS_Store
+
+
