@@ -15,7 +15,8 @@
     "test:coverage": "jest --coverage",
     "test:coverage:report": "jest --coverage --coverageReporters=text-lcov | coveralls",
     "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "smoke:binance": "ts-node src/scripts/binance-smoke-test.ts"
   },
   "keywords": [
     "trading",
