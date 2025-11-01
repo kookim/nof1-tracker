@@ -30,7 +30,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # 拷贝运行所需产物与元数据
 COPY --chown=node:node --from=build /app/dist ./dist
-COPY --chown=node:node /app/package.json ./package.json
 
 # 预创建可写数据目录，使用非 root 用户
 RUN mkdir -p /app/data && chown -R node:node /app
